@@ -65,7 +65,7 @@ members = [
 exclude = []
 
 [workspace.package]
-version = "0.10.0"
+version = "0.10.1"
 edition = "2021"
 rust-version = "1.78"
 license = "Apache-2.0"
@@ -161,41 +161,41 @@ rust-embed = { version = "8" }
 clap = { version = "4", features = ["derive"] }
 
 # Internal
-atomr = { path = "crates/atomr", version = "0.10.0" }
-atomr-core = { path = "crates/atomr-core", version = "0.10.0" }
-atomr-money = { path = "crates/atomr-money", version = "0.10.0" }
-atomr-config = { path = "crates/atomr-config", version = "0.10.0" }
-atomr-macros = { path = "crates/atomr-macros", version = "0.10.0" }
-atomr-testkit = { path = "crates/atomr-testkit", version = "0.10.0" }
-atomr-remote = { path = "crates/atomr-remote", version = "0.10.0" }
-atomr-remote-serial = { path = "crates/atomr-remote-serial", version = "0.10.0" }
-atomr-cluster = { path = "crates/atomr-cluster", version = "0.10.0" }
-atomr-cluster-tools = { path = "crates/atomr-cluster-tools", version = "0.10.0" }
-atomr-cluster-sharding = { path = "crates/atomr-cluster-sharding", version = "0.10.0" }
-atomr-cluster-metrics = { path = "crates/atomr-cluster-metrics", version = "0.10.0" }
-atomr-distributed-data = { path = "crates/atomr-distributed-data", version = "0.10.0" }
-atomr-distributed-data-lmdb = { path = "crates/atomr-distributed-data-lmdb", version = "0.10.0" }
-atomr-persistence = { path = "crates/atomr-persistence", version = "0.10.0" }
-atomr-persistence-query = { path = "crates/atomr-persistence-query", version = "0.10.0" }
-atomr-persistence-query-inmemory = { path = "crates/atomr-persistence-query-inmemory", version = "0.10.0" }
-atomr-persistence-tck = { path = "crates/atomr-persistence-tck", version = "0.10.0" }
-atomr-persistence-sql = { path = "crates/atomr-persistence-sql", version = "0.10.0" }
-atomr-persistence-redis = { path = "crates/atomr-persistence-redis", version = "0.10.0" }
-atomr-persistence-mongodb = { path = "crates/atomr-persistence-mongodb", version = "0.10.0" }
-atomr-persistence-cassandra = { path = "crates/atomr-persistence-cassandra", version = "0.10.0" }
-atomr-persistence-aws = { path = "crates/atomr-persistence-aws", version = "0.10.0" }
-atomr-persistence-azure = { path = "crates/atomr-persistence-azure", version = "0.10.0" }
-atomr-streams = { path = "crates/atomr-streams", version = "0.10.0" }
-atomr-streams-io = { path = "crates/atomr-streams-io", version = "0.10.0" }
-atomr-fix = { path = "crates/atomr-fix", version = "0.10.0" }
-atomr-patterns = { path = "crates/atomr-patterns", version = "0.10.0" }
-atomr-telemetry = { path = "crates/atomr-telemetry", version = "0.10.0" }
-atomr-dashboard = { path = "crates/atomr-dashboard", version = "0.10.0" }
-atomr-coordination = { path = "crates/atomr-coordination", version = "0.10.0" }
-atomr-discovery = { path = "crates/atomr-discovery", version = "0.10.0" }
-atomr-di = { path = "crates/atomr-di", version = "0.10.0" }
-atomr-hosting = { path = "crates/atomr-hosting", version = "0.10.0" }
-atomr-pyremote = { path = "crates/py-bindings/pyremote", version = "0.10.0" }
+atomr = { path = "crates/atomr", version = "0.10.1" }
+atomr-core = { path = "crates/atomr-core", version = "0.10.1" }
+atomr-money = { path = "crates/atomr-money", version = "0.10.1" }
+atomr-config = { path = "crates/atomr-config", version = "0.10.1" }
+atomr-macros = { path = "crates/atomr-macros", version = "0.10.1" }
+atomr-testkit = { path = "crates/atomr-testkit", version = "0.10.1" }
+atomr-remote = { path = "crates/atomr-remote", version = "0.10.1" }
+atomr-remote-serial = { path = "crates/atomr-remote-serial", version = "0.10.1" }
+atomr-cluster = { path = "crates/atomr-cluster", version = "0.10.1" }
+atomr-cluster-tools = { path = "crates/atomr-cluster-tools", version = "0.10.1" }
+atomr-cluster-sharding = { path = "crates/atomr-cluster-sharding", version = "0.10.1" }
+atomr-cluster-metrics = { path = "crates/atomr-cluster-metrics", version = "0.10.1" }
+atomr-distributed-data = { path = "crates/atomr-distributed-data", version = "0.10.1" }
+atomr-distributed-data-lmdb = { path = "crates/atomr-distributed-data-lmdb", version = "0.10.1" }
+atomr-persistence = { path = "crates/atomr-persistence", version = "0.10.1" }
+atomr-persistence-query = { path = "crates/atomr-persistence-query", version = "0.10.1" }
+atomr-persistence-query-inmemory = { path = "crates/atomr-persistence-query-inmemory", version = "0.10.1" }
+atomr-persistence-tck = { path = "crates/atomr-persistence-tck", version = "0.10.1" }
+atomr-persistence-sql = { path = "crates/atomr-persistence-sql", version = "0.10.1" }
+atomr-persistence-redis = { path = "crates/atomr-persistence-redis", version = "0.10.1" }
+atomr-persistence-mongodb = { path = "crates/atomr-persistence-mongodb", version = "0.10.1" }
+atomr-persistence-cassandra = { path = "crates/atomr-persistence-cassandra", version = "0.10.1" }
+atomr-persistence-aws = { path = "crates/atomr-persistence-aws", version = "0.10.1" }
+atomr-persistence-azure = { path = "crates/atomr-persistence-azure", version = "0.10.1" }
+atomr-streams = { path = "crates/atomr-streams", version = "0.10.1" }
+atomr-streams-io = { path = "crates/atomr-streams-io", version = "0.10.1" }
+atomr-fix = { path = "crates/atomr-fix", version = "0.10.1" }
+atomr-patterns = { path = "crates/atomr-patterns", version = "0.10.1" }
+atomr-telemetry = { path = "crates/atomr-telemetry", version = "0.10.1" }
+atomr-dashboard = { path = "crates/atomr-dashboard", version = "0.10.1" }
+atomr-coordination = { path = "crates/atomr-coordination", version = "0.10.1" }
+atomr-discovery = { path = "crates/atomr-discovery", version = "0.10.1" }
+atomr-di = { path = "crates/atomr-di", version = "0.10.1" }
+atomr-hosting = { path = "crates/atomr-hosting", version = "0.10.1" }
+atomr-pyremote = { path = "crates/py-bindings/pyremote", version = "0.10.1" }
 
 [profile.release]
 opt-level = 3
