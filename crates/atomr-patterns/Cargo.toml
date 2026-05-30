@@ -25,11 +25,13 @@ tokio                   = { workspace = true }
 thiserror               = { workspace = true }
 tracing                 = { workspace = true }
 parking_lot             = { workspace = true }
+sqlx                    = { workspace = true }
 
 [dev-dependencies]
 atomr-persistence-query-inmemory = { workspace = true }
 atomr-config                     = { workspace = true }
 atomr-cluster-tools              = { workspace = true }
+sqlx                             = { workspace = true, features = ["sqlite"] }
 
 [features]
 default = []

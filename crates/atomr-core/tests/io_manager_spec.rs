@@ -9,10 +9,11 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
 async fn next_event(rx: &mut tokio::sync::mpsc::UnboundedReceiver<IoEvent>) -> IoEvent {
-    tokio::time::timeout(Duration::from_millis(500), rx.recv())
-        .await
-        .expect("event timeout")
-        .expect("rx closed")
+    next_event_within(rx, Duration::from_millis(500)).await
+}
+
+async fn next_event_within(rx: &mut tokio::sync::mpsc::UnboundedReceiver<IoEvent>, dur: Duration) -> IoEvent {
+    tokio::time::timeout(dur, rx.recv()).await.expect("event timeout").expect("rx closed")
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -62,9 +63,11 @@ async fn tcp_outbound_connect_emits_connected_event() {
 async fn tcp_outbound_to_unbound_addr_yields_error_event() {
     let (mgr, mut events) = TcpManager::spawn();
     // Connect to an address that is not bound. Use a port the OS is
-    // unlikely to have reserved.
+    // unlikely to have reserved. Windows surfaces ECONNREFUSED on a
+    // dead loopback port only after its initial SYN-retransmit window
+    // (~2s), so this case needs more headroom than the default 500ms.
     mgr.connect("127.0.0.1:1".parse().unwrap()).unwrap();
-    match next_event(&mut events).await {
+    match next_event_within(&mut events, Duration::from_secs(5)).await {
         IoEvent::Error { .. } => {}
         other => panic!("expected Error, got {other:?}"),
     }

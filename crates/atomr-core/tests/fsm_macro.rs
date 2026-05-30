@@ -22,8 +22,8 @@ fsm! {
     data = u32,
     msg = Cmd;
     initial state = Light::Idle, data = 0;
-    (Light::Idle, Cmd::Go) => |s, d| (Light::Running, *d + 1, None);
-    (Light::Running, Cmd::Stop) => |s, d| (Light::Idle, *d, None);
+    (Light::Idle, Cmd::Go) => |_s, d| (Light::Running, *d + 1, None);
+    (Light::Running, Cmd::Stop) => |_s, d| (Light::Idle, *d, None);
 }
 
 #[test]

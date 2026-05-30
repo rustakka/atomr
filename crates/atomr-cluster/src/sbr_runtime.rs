@@ -6,11 +6,12 @@
 //! observed for at least `stable_after`, it consults the configured
 //! strategy and returns the actions the leader should apply.
 
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::member::{Member, MemberStatus};
 use crate::membership::MembershipState;
-use crate::sbr::{DowningDecision, DowningStrategy};
+use crate::sbr::{DowningDecision, DowningStrategy, QuorumObserver};
 
 /// Action emitted by [`SbrRuntime::tick`].
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -33,11 +34,46 @@ pub struct SbrRuntime<S: DowningStrategy> {
     /// When did we first observe a non-empty unreachable set?
     /// Reset to `None` when the unreachable set is empty.
     unstable_since: Option<Instant>,
+    /// Optional quorum observer (FR-7b). Notified once on the loss
+    /// transition (action becomes `DownSelf`) and once on the
+    /// subsequent regain (partition heals after a prior loss).
+    observer: Option<Arc<dyn QuorumObserver>>,
+    /// `true` once we have fired `on_quorum_lost` and not yet fired the
+    /// matching `on_quorum_regained`. Drives edge-triggered semantics.
+    quorum_lost: bool,
 }
 
 impl<S: DowningStrategy> SbrRuntime<S> {
     pub fn new(strategy: S, stable_after: Duration) -> Self {
-        Self { strategy, stable_after, unstable_since: None }
+        Self { strategy, stable_after, unstable_since: None, observer: None, quorum_lost: false }
+    }
+
+    /// Attach a [`QuorumObserver`] (FR-7b). Builder-style; consumes and
+    /// returns `self`.
+    pub fn with_observer(mut self, observer: Arc<dyn QuorumObserver>) -> Self {
+        self.observer = Some(observer);
+        self
+    }
+
+    /// Fire `on_quorum_lost` exactly once per loss episode.
+    fn note_quorum_lost(&mut self) {
+        if !self.quorum_lost {
+            self.quorum_lost = true;
+            if let Some(o) = &self.observer {
+                o.on_quorum_lost();
+            }
+        }
+    }
+
+    /// Fire `on_quorum_regained` exactly once, and only if we had
+    /// previously lost quorum.
+    fn note_quorum_regained(&mut self) {
+        if self.quorum_lost {
+            self.quorum_lost = false;
+            if let Some(o) = &self.observer {
+                o.on_quorum_regained();
+            }
+        }
     }
 
     /// One scheduling tick. Returns the action the leader should
@@ -58,8 +94,10 @@ impl<S: DowningStrategy> SbrRuntime<S> {
         }
 
         if unreachable.is_empty() {
-            // Healthy — reset the stability clock.
+            // Healthy — reset the stability clock and, if we had
+            // previously declared quorum lost, announce the regain.
             self.unstable_since = None;
+            self.note_quorum_regained();
             return SbrAction::None;
         }
 
@@ -77,7 +115,12 @@ impl<S: DowningStrategy> SbrRuntime<S> {
             DowningDecision::DownAll => {
                 SbrAction::DownAll(state.members.iter().map(|m| m.address.to_string()).collect())
             }
-            DowningDecision::DownSelf => SbrAction::DownSelf,
+            DowningDecision::DownSelf => {
+                // We are on the losing side — quorum is lost. Fire the
+                // observer once for this episode.
+                self.note_quorum_lost();
+                SbrAction::DownSelf
+            }
         }
     }
 
@@ -144,6 +187,56 @@ mod tests {
             }
             other => panic!("expected DownUnreachable, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn quorum_observer_fires_on_loss_and_regain() {
+        use crate::sbr::{QuorumObserver, StaticQuorumStrategy};
+        use std::sync::atomic::{AtomicU32, Ordering};
+
+        struct Counter {
+            lost: AtomicU32,
+            regained: AtomicU32,
+        }
+        impl QuorumObserver for Counter {
+            fn on_quorum_lost(&self) {
+                self.lost.fetch_add(1, Ordering::SeqCst);
+            }
+            fn on_quorum_regained(&self) {
+                self.regained.fetch_add(1, Ordering::SeqCst);
+            }
+        }
+
+        let obs = Arc::new(Counter { lost: AtomicU32::new(0), regained: AtomicU32::new(0) });
+
+        let mut s = MembershipState::new();
+        s.add_or_update(member("a", MemberStatus::Up));
+        s.add_or_update(member("b", MemberStatus::Up));
+        s.add_or_update(member("c", MemberStatus::Up));
+        // a is the local survivor candidate but quorum_size=3 means a
+        // single-reachable partition loses → DownSelf.
+        s.reachability.unreachable(Address::local("a"), Address::local("b"));
+        s.reachability.unreachable(Address::local("a"), Address::local("c"));
+
+        // quorum_size 3, only `a` reachable → DownSelf → loss fires.
+        let mut rt = SbrRuntime::new(StaticQuorumStrategy { quorum_size: 3 }, Duration::from_millis(0))
+            .with_observer(obs.clone());
+        let now = Instant::now();
+        assert_eq!(rt.tick(&s, now), SbrAction::DownSelf);
+        assert_eq!(obs.lost.load(Ordering::SeqCst), 1);
+        // Idempotent within the same loss episode.
+        assert_eq!(rt.tick(&s, now), SbrAction::DownSelf);
+        assert_eq!(obs.lost.load(Ordering::SeqCst), 1);
+        assert_eq!(obs.regained.load(Ordering::SeqCst), 0);
+
+        // Heal the partition → regain fires once.
+        s.reachability.reachable(Address::local("a"), Address::local("b"));
+        s.reachability.reachable(Address::local("a"), Address::local("c"));
+        assert_eq!(rt.tick(&s, now + Duration::from_secs(1)), SbrAction::None);
+        assert_eq!(obs.regained.load(Ordering::SeqCst), 1);
+        // Idempotent — stays healthy.
+        assert_eq!(rt.tick(&s, now + Duration::from_secs(2)), SbrAction::None);
+        assert_eq!(obs.regained.load(Ordering::SeqCst), 1);
     }
 
     #[test]

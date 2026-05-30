@@ -6,6 +6,68 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — financial-substrate primitives (Hedgehog FR-1 … FR-13)
+
+A coordinated set of money-correctness, deterministic-replay, hard-safety,
+regulatory-storage, real-world-I/O, and observability primitives requested by
+downstream financial consumers (see `docs/feature-requests/requests-from-hedgehog.md`).
+All changes are additive — core type changes are field-additive with defaults
+or use `#[non_exhaustive]`, so existing code continues to compile.
+
+- **FR-1 — `atomr-money` crate.** New exact-decimal `Money` / `Price` / `Qty` /
+  `Currency` over `rust_decimal`, with **no** defaulted `f64` constructor
+  (lossy `f64` ingestion is gated behind the off-by-default `f64-lossy`
+  feature), **string** (never float) serde, and fully checked arithmetic
+  (currency-mismatch / overflow return `MoneyError`). Property-tested for
+  associativity and zero penny-drift.
+- **FR-2 — Clock-gated streams.** New `atomr_core::time::{Clock, LogicalTime,
+  ManualClock, SystemClock}` foundation; `atomr_streams::clock_gated` /
+  `step_locked` gate emission on a logical-time watermark for lookahead-free
+  point-in-time replay.
+- **FR-3 — Real-world I/O + rate limiting.** New `atomr-streams-io` crate with
+  `HttpPollSource` (conditional GET / ETag) and `WsSource` (reconnecting) behind
+  `http` / `ws` features; `atomr_streams::rate::{token_bucket,
+  token_bucket_keyed, respect_retry_after}` token-bucket operators.
+- **FR-4 — `SignedSumMap` CRDT.** Signed i128-payload exposure CRDT in
+  `atomr-distributed-data` with convergent per-node-max merge, replicated via
+  the existing `Replicator`.
+- **FR-5 — `ClusterKillSwitch`.** Latched, monotone (Flag-backed) cluster halt
+  in `atomr-cluster-tools` with per-party acknowledged `await_quiescence`,
+  `HaltGuarded`, and a two-person-authorized epoch `reset`. Quiescence spans the
+  cluster: attach a `HaltTransport` (via `ClusterKillSwitch::with_transport`) and
+  `await_quiescence` broadcasts a `HaltPdu::Halt` to every peer and collects
+  remote `HaltPdu::Ack`s — peers engage their own latch and quiesce their local
+  parties on receipt (feed inbound PDUs in via `ClusterKillSwitch::apply_pdu`).
+  `QuiescenceReport` gains `remote_acked` / `remote_total`; with no transport the
+  switch stays purely local.
+- **FR-6 — Graded supervisor directives.** `Directive::{Throttle, Suspend,
+  ResumeFrom}` + `SuspendMode`, an `Actor::on_directive` hook, and
+  `ActorRef::tell_directive` to degrade a running actor without restart.
+- **FR-7 — Role-weighted SBR + singleton fencing.** `RoleWeightedQuorum`
+  downing strategy, `QuorumObserver` degradation hook, monotonic `FenceToken`,
+  and a `SingletonHandoff` trait for clean external-session migration.
+- **FR-8 — Bitemporal as-of queries.** `ReadJournal::events_as_of` /
+  `events_valid_as_of`; `atomr-persistence-sql` adds `system_time` / `valid_time`
+  columns + indexes (no-lookahead: later restatements invisible to earlier
+  as-of reads).
+- **FR-9 — WORM + transactional outbox.** `SqlJournal::with_worm` hash-chained
+  tamper-evident journal mode + `IntegrityVerify::verify_chain`, and a
+  same-transaction `TxOutbox` in `atomr-patterns` (distinct from the existing
+  journal-tailing relay).
+- **FR-10 — Trace/baggage propagation.** `MessageEnvelope` now carries
+  `Metadata`; `ActorRef::tell_with_meta`, `Context::metadata()`, and a
+  `Props::with_interceptor` (`MessageInterceptor`) hook propagate trace context
+  without touching domain message types.
+- **FR-11 — OTel span model.** `atomr-telemetry` gains `OtelTracerExporter` +
+  `TraceContextInterceptor` for per-message-handle / supervision / stream-element
+  spans correlated by trace_id, alongside the existing metrics exporter.
+- **FR-12 — `atomr-fix` crate.** FIX session-layer FSM (logon, heartbeat /
+  test-request, sequence management, resend / gap-fill, logout) over
+  `atomr-streams` Tcp + Framing, with a pluggable `FixSeqStore`.
+- **FR-13 — Record-and-replay determinism.** `SeededRng` (snapshot / restore /
+  split), `EntryKind` provenance tagging, `RunPin` governance metadata, and a
+  `ReplayHarness` in `atomr-persistence`.
+
 ## [0.3.1] — 2026-05-05
 
 ### Added

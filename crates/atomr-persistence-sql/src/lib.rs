@@ -9,6 +9,7 @@ mod journal;
 mod query;
 mod schema;
 mod snapshot;
+mod worm;
 
 pub use config::{SqlConfig, SqlDialect};
 pub use dialect::detect_dialect;
@@ -16,3 +17,4 @@ pub use journal::SqlJournal;
 pub use query::SqlReadJournal;
 pub use schema::ensure_schema;
 pub use snapshot::SqlSnapshotStore;
+pub use worm::{ChainProof, IntegrityError, IntegrityVerify, WormConfig};

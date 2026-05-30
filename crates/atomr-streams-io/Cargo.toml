@@ -1,0 +1,48 @@
+[package]
+name = "atomr-streams-io"
+description = "Real-world I/O Source/Sink adapters for atomr-streams — HTTP polling and WebSocket connectors behind feature flags."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "../../README.md"
+documentation = "https://docs.rs/atomr-streams-io"
+keywords = ["actor", "streams", "http", "websocket", "io"]
+categories = ["asynchronous", "network-programming"]
+
+[dependencies]
+atomr-core = { workspace = true }
+atomr-streams = { workspace = true }
+tokio = { workspace = true }
+futures = { workspace = true }
+futures-util = { workspace = true }
+bytes = { workspace = true }
+thiserror = { workspace = true }
+url = { workspace = true }
+reqwest = { workspace = true, optional = true }
+tokio-tungstenite = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+
+# The example uses `http_poll`, which only exists under the `http` feature.
+# Gating it here keeps a plain `cargo build/test --workspace` (no features)
+# from trying to compile it and failing on the cfg'd-out module.
+[[example]]
+name = "edgar_poller"
+required-features = ["http"]
+
+[features]
+default = []
+http = ["dep:reqwest"]
+ws = ["dep:tokio-tungstenite"]
+all = ["http", "ws"]
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

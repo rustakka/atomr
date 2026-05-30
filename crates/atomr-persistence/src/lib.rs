@@ -4,6 +4,7 @@
 
 mod alod;
 mod async_snapshot;
+mod determinism;
 mod eventsourced;
 mod journal;
 mod persistent_actor;
@@ -15,6 +16,7 @@ mod snapshot;
 
 pub use alod::{AtLeastOnceDelivery, UnconfirmedDelivery};
 pub use async_snapshot::{AsyncSnapshotter, SnapshotPolicy};
+pub use determinism::{with_kind, EntryKind, ReplayHarness, ReplayReport, RngState, RunPin, SeededRng};
 pub use eventsourced::{Eventsourced, EventsourcedError};
 pub use journal::{InMemoryJournal, Journal, JournalError, PersistentRepr};
 pub use persistent_actor::PersistentActor;

@@ -115,6 +115,36 @@ impl<M: Send + 'static> ActorRef<M> {
         }
     }
 
+    /// Send `msg` with attached [`Metadata`](super::Metadata) (trace context +
+    /// baggage, FR-10). The metadata rides the envelope and is exposed to the
+    /// receiving actor via [`Context::metadata`](super::Context::metadata).
+    pub fn tell_with_meta(&self, msg: M, metadata: super::metadata::Metadata) {
+        match &*self.inner {
+            RefImpl::Local { user, path, system_ref, .. } => {
+                let env = MessageEnvelope::with_meta(msg, Sender::None, metadata);
+                if user.send(env).is_err() {
+                    notify_dead_letter::<M>(path, system_ref);
+                }
+            }
+            RefImpl::Remote { handle, serialize, .. } => {
+                // Remote metadata propagation is carried alongside the sender
+                // path on the serialized hop; see `atomr-remote`.
+                handle.tell_serialized(serialize(msg, None));
+            }
+        }
+    }
+
+    /// Push a graded supervisor [`Directive`](crate::supervision::Directive)
+    /// (Throttle / Suspend / ResumeFrom) into a running actor without
+    /// restarting it (FR-6). Delivered on the system channel; the actor
+    /// observes it via [`Actor::on_directive`](super::Actor::on_directive).
+    /// No-op for remote refs in this release.
+    pub fn tell_directive(&self, directive: crate::supervision::Directive) {
+        if let RefImpl::Local { system, .. } = &*self.inner {
+            let _ = system.send(SystemMsg::Directive(directive));
+        }
+    }
+
     /// Stop the actor.
     pub fn stop(&self) {
         match &*self.inner {

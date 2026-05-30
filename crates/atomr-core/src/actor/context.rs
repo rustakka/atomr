@@ -70,6 +70,7 @@ pub struct Context<A: Actor> {
     pub(crate) stash: VecDeque<A::Msg>,
     pub(crate) receive_timeout: Option<Duration>,
     pub(crate) current_sender: Sender,
+    pub(crate) current_metadata: super::metadata::Metadata,
     pub(crate) stopping: bool,
     pub(crate) phase: LifecyclePhase,
 }
@@ -90,9 +91,17 @@ impl<A: Actor> Context<A> {
             stash: VecDeque::new(),
             receive_timeout: None,
             current_sender: Sender::None,
+            current_metadata: super::metadata::Metadata::new(),
             stopping: false,
             phase: LifecyclePhase::Starting,
         }
+    }
+
+    /// Metadata (trace context + baggage) of the message currently being
+    /// processed (FR-10). Empty unless the sender attached it. Handlers can
+    /// read it to extend trace context onto outgoing sends.
+    pub fn metadata(&self) -> &super::metadata::Metadata {
+        &self.current_metadata
     }
 
     /// Current lifecycle phase. Phase 1.C marker — useful in

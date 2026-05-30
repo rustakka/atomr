@@ -12,6 +12,7 @@
 //! want to actually hit a collector.
 
 use std::sync::Arc;
+#[cfg(any(feature = "otel-stdout", feature = "otel-otlp-grpc", feature = "otel-otlp-http"))]
 use std::time::Duration;
 
 use opentelemetry::metrics::{Counter, Meter, UpDownCounter};

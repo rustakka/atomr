@@ -57,6 +57,8 @@ mod private {
     {
     }
     impl<K> Sealed for crate::maps::PNCounterMap<K> where K: Eq + std::hash::Hash + Clone {}
+    impl Sealed for crate::signed_sum::SignedSum {}
+    impl<K: Ord + Clone> Sealed for crate::signed_sum::SignedSumMap<K> {}
     impl<K, V> Sealed for crate::maps::ORMultiMap<K, V>
     where
         K: Eq + std::hash::Hash + Clone,

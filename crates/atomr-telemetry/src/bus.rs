@@ -62,12 +62,23 @@ impl TelemetryEvent {
 pub struct TelemetryBus {
     tx: broadcast::Sender<TelemetryEvent>,
     exporters: Arc<RwLock<Vec<Arc<dyn Exporter>>>>,
+    /// Optional span (trace) exporter for the FR-11 OTel span model. Spans
+    /// are emitted out-of-band (via the message interceptor and direct
+    /// `record_*_span` calls), not through the `TelemetryEvent` fan-out, so
+    /// this lives in its own slot rather than the `Exporter` list.
+    #[cfg(feature = "otel")]
+    span_exporter: Arc<RwLock<Option<Arc<crate::exporters::otel_tracer::OtelTracerExporter>>>>,
 }
 
 impl TelemetryBus {
     pub fn new(capacity: usize) -> Self {
         let (tx, _rx) = broadcast::channel(capacity.max(16));
-        Self { tx, exporters: Arc::new(RwLock::new(Vec::new())) }
+        Self {
+            tx,
+            exporters: Arc::new(RwLock::new(Vec::new())),
+            #[cfg(feature = "otel")]
+            span_exporter: Arc::new(RwLock::new(None)),
+        }
     }
 
     pub fn publish(&self, event: TelemetryEvent) {
@@ -110,6 +121,40 @@ impl TelemetryBus {
 
     pub(crate) fn attach_exporter(&self, exporter: Arc<dyn Exporter>) {
         self.exporters.write().push(exporter);
+    }
+
+    /// Install the FR-11 span exporter and return a [`TraceContextInterceptor`]
+    /// wired to it. Install the interceptor on actor `Props` via
+    /// `Props::with_interceptor` so handled messages open `actor.handle` spans
+    /// and outgoing messages carry child trace context. The metrics path is
+    /// untouched.
+    #[cfg(feature = "otel")]
+    pub fn attach_span_exporter(
+        &self,
+        exporter: Arc<crate::exporters::otel_tracer::OtelTracerExporter>,
+        probe: crate::exporters::otel_tracer::SpanProbeConfig,
+    ) -> Arc<crate::exporters::otel_tracer::TraceContextInterceptor> {
+        *self.span_exporter.write() = Some(exporter.clone());
+        Arc::new(crate::exporters::otel_tracer::TraceContextInterceptor::new(exporter, probe))
+    }
+
+    /// Builder-style variant of [`attach_span_exporter`](Self::attach_span_exporter).
+    /// Returns `(self, interceptor)` so the bus can be threaded fluently.
+    #[cfg(feature = "otel")]
+    pub fn with_span_exporter(
+        self,
+        exporter: Arc<crate::exporters::otel_tracer::OtelTracerExporter>,
+        probe: crate::exporters::otel_tracer::SpanProbeConfig,
+    ) -> (Self, Arc<crate::exporters::otel_tracer::TraceContextInterceptor>) {
+        let interceptor = self.attach_span_exporter(exporter, probe);
+        (self, interceptor)
+    }
+
+    /// The installed span exporter, if any. Lets application code call
+    /// `record_handle_span` / `record_restart_span` directly.
+    #[cfg(feature = "otel")]
+    pub fn span_exporter(&self) -> Option<Arc<crate::exporters::otel_tracer::OtelTracerExporter>> {
+        self.span_exporter.read().clone()
     }
 }
 

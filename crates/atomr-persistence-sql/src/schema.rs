@@ -23,6 +23,36 @@ pub async fn ensure_schema(pool: &AnyPool, cfg: &SqlConfig) -> Result<(), Journa
     for stmt in split_statements(ddl) {
         sqlx::query(&stmt).execute(pool).await.map_err(JournalError::backend)?;
     }
+    // FR-9 / FR-8: additive WORM hash-chain + bitemporal columns (002). The
+    // ALTER statements are tolerant of an already-migrated schema per dialect
+    // (IF NOT EXISTS / COL_LENGTH guards); on SQLite, re-adding a column errors,
+    // so we ignore "duplicate column" failures to keep bootstrap idempotent.
+    let worm_ddl = crate::dialect::worm_migration_for(cfg.dialect);
+    for stmt in split_statements(worm_ddl) {
+        if let Err(e) = sqlx::query(&stmt).execute(pool).await {
+            let msg = e.to_string().to_ascii_lowercase();
+            let already_applied = msg.contains("duplicate column")
+                || msg.contains("already exists")
+                || msg.contains("duplicate")
+                || msg.contains("exists");
+            if !already_applied {
+                return Err(JournalError::backend(e));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Install the dialect's WORM `deny_update_delete` enforcement DDL.
+/// Called by [`crate::journal::SqlJournal::with_worm`] when the toggle is on.
+/// SQLite installs `BEFORE UPDATE/DELETE` abort triggers; other dialects are
+/// documented for out-of-band operator action (see each `002_worm.sql`).
+pub(crate) async fn install_worm_triggers(pool: &AnyPool, cfg: &SqlConfig) -> Result<(), JournalError> {
+    let ddl = crate::dialect::worm_deny_trigger_for(cfg.dialect);
+    // Trigger bodies contain inner `;`, so they are delimited by `@@`, not `;`.
+    for stmt in ddl.split("@@").map(str::trim).filter(|s| !s.is_empty()) {
+        sqlx::query(stmt).execute(pool).await.map_err(JournalError::backend)?;
+    }
     Ok(())
 }
 

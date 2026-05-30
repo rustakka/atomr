@@ -15,6 +15,9 @@ pub mod prometheus;
 #[cfg(feature = "otel")]
 pub mod otel;
 
+#[cfg(feature = "otel")]
+pub mod otel_tracer;
+
 /// Synchronous exporter callback surface. Implementers are stored as
 /// `Arc<dyn Exporter>` on the `TelemetryBus`.
 pub trait Exporter: Send + Sync + 'static {

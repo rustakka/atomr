@@ -19,6 +19,7 @@
 //! Operator.
 
 mod bidi;
+mod clock_gated;
 mod file_io;
 mod flow;
 mod framing;
@@ -44,6 +45,7 @@ mod tcp;
 mod timed;
 
 pub use bidi::BidiFlow;
+pub use clock_gated::{clock_gated, step_locked, AckSink, InstantToken};
 pub use file_io::FileIO;
 pub use flow::Flow;
 pub use framing::{Framing, FramingError};
@@ -57,7 +59,7 @@ pub use lifecycle::{count_elements, monitor, watch_termination};
 pub use materializer::ActorMaterializer;
 pub use overflow::OverflowStrategy;
 pub use queue::{QueueOfferResult, SourceQueue};
-pub use rate::{conflate, expand};
+pub use rate::{conflate, expand, respect_retry_after, token_bucket, token_bucket_keyed, RetryAfter};
 pub use recovery::{map_error, recover, recover_with, recover_with_retries, select_error};
 pub use restart::{RestartSettings, RestartSource};
 pub use routing::{balance, partition, unzip};

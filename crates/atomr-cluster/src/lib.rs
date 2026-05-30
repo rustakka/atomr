@@ -39,7 +39,7 @@ pub use reachability::{Reachability, ReachabilityStatus};
 pub use remote_adapter::ClusterRemoteAdapter;
 pub use sbr::{
     DownAllStrategy, DowningDecision, DowningStrategy, KeepMajorityStrategy, KeepOldestStrategy, KeepReferee,
-    LeaseMajorityStrategy, SplitBrainResolver, StaticQuorumStrategy,
+    LeaseMajorityStrategy, QuorumObserver, RoleWeightedQuorum, SplitBrainResolver, StaticQuorumStrategy,
 };
 pub use sbr_runtime::{SbrAction, SbrRuntime};
 pub use transport::{

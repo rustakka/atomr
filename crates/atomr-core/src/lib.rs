@@ -40,6 +40,7 @@ pub mod pattern;
 pub mod routing;
 pub mod serialization;
 pub mod supervision;
+pub mod time;
 pub mod util;
 
 pub mod prelude {
@@ -50,6 +51,7 @@ pub mod prelude {
     pub use crate::supervision::{
         Directive, OneForOneStrategy, PanicPayload, SupervisionError, SupervisorOf, SupervisorStrategy,
     };
+    pub use crate::time::{Clock, LogicalTime, ManualClock, SystemClock};
     pub use async_trait::async_trait;
     pub use atomr_config::Config;
 }

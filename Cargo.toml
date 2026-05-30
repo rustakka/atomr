@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/atomr",
     "crates/atomr-core",
+    "crates/atomr-money",
     "crates/atomr-config",
     "crates/atomr-macros",
     "crates/atomr-testkit",
@@ -25,6 +26,8 @@ members = [
     "crates/atomr-persistence-aws",
     "crates/atomr-persistence-azure",
     "crates/atomr-streams",
+    "crates/atomr-streams-io",
+    "crates/atomr-fix",
     "crates/atomr-patterns",
     "crates/atomr-telemetry",
     "crates/atomr-dashboard",
@@ -128,6 +131,15 @@ pyo3-async-runtimes = { version = "0.22", default-features = false, features = [
 uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
 
+# Decimal / money (FR-1)
+rust_decimal = { version = "1", default-features = false, features = ["std", "serde-with-str"] }
+
+# Deterministic RNG (FR-13)
+rand_chacha = "0.3"
+
+# WebSocket transport (FR-3, streams-io)
+tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
+
 # Persistence drivers (used by provider crates; kept here so versions stay in sync)
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "macros", "any", "chrono", "uuid"] }
 fred = { version = "10", default-features = false, features = ["i-std", "transactions"] }
@@ -151,6 +163,7 @@ clap = { version = "4", features = ["derive"] }
 # Internal
 atomr = { path = "crates/atomr", version = "0.9.2" }
 atomr-core = { path = "crates/atomr-core", version = "0.9.2" }
+atomr-money = { path = "crates/atomr-money", version = "0.9.2" }
 atomr-config = { path = "crates/atomr-config", version = "0.9.2" }
 atomr-macros = { path = "crates/atomr-macros", version = "0.9.2" }
 atomr-testkit = { path = "crates/atomr-testkit", version = "0.9.2" }
@@ -173,6 +186,8 @@ atomr-persistence-cassandra = { path = "crates/atomr-persistence-cassandra", ver
 atomr-persistence-aws = { path = "crates/atomr-persistence-aws", version = "0.9.2" }
 atomr-persistence-azure = { path = "crates/atomr-persistence-azure", version = "0.9.2" }
 atomr-streams = { path = "crates/atomr-streams", version = "0.9.2" }
+atomr-streams-io = { path = "crates/atomr-streams-io", version = "0.9.2" }
+atomr-fix = { path = "crates/atomr-fix", version = "0.9.2" }
 atomr-patterns = { path = "crates/atomr-patterns", version = "0.9.2" }
 atomr-telemetry = { path = "crates/atomr-telemetry", version = "0.9.2" }
 atomr-dashboard = { path = "crates/atomr-dashboard", version = "0.9.2" }

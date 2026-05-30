@@ -19,13 +19,15 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
+use atomr_core::time::{LogicalTime, ManualClock as RustManualClock};
 use atomr_streams::{
     conflate, expand, initial_delay, keep_alive, merge_prioritized, merge_sorted, prefix_and_tail,
-    recover_with_retries, select_error, split_after, ActorMaterializer, BidiFlow as RustBidiFlow,
-    BroadcastHub as RustBroadcastHub, FileIO as RustFileIO, Flow, Framing as RustFraming,
-    KillSwitch as RustKillSwitch, MergeHub as RustMergeHub, QueueOfferResult as RustOfferResult,
-    RestartSettings as RustRestartSettings, RestartSource as RustRestartSource, Sink,
-    SinkQueue as RustSinkQueue, Source, SupervisionDirective, Tcp as RustTcp,
+    recover_with_retries, select_error, split_after, token_bucket, ActorMaterializer,
+    BidiFlow as RustBidiFlow, BroadcastHub as RustBroadcastHub, FileIO as RustFileIO, Flow,
+    Framing as RustFraming, KillSwitch as RustKillSwitch, MergeHub as RustMergeHub,
+    QueueOfferResult as RustOfferResult, RestartSettings as RustRestartSettings,
+    RestartSource as RustRestartSource, Sink, SinkQueue as RustSinkQueue, Source, SupervisionDirective,
+    Tcp as RustTcp,
 };
 use bytes::Bytes;
 use parking_lot::Mutex;
@@ -284,6 +286,17 @@ impl PySource {
             let collected = Sink::collect(src).await;
             Python::with_gil(|py| Ok(pylist_from_send(py, collected).unbind().into_any()))
         })
+    }
+
+    /// `source.token_bucket(rate_per_sec, burst)` — rate-limit emission to
+    /// `rate_per_sec` elements/second, allowing short bursts up to `burst`
+    /// tokens. Consumes and returns a new `Source`.
+    #[pyo3(signature = (rate_per_sec, burst=1))]
+    fn token_bucket(&self, py: Python<'_>, rate_per_sec: f64, burst: u32) -> PyResult<Py<PySource>> {
+        let src_b = self.take_builder()?;
+        let rate = rate_per_sec.max(0.0);
+        let new_b = SourceBuilder::new(move || token_bucket(src_b.build(), rate, burst));
+        Py::new(py, PySource::from_builder(new_b))
     }
 
     /// `source.kill_switch()` — wrap with a fresh `KillSwitch`. Returns
@@ -1846,6 +1859,55 @@ fn via_select_error(
 }
 
 // =============================================================================
+// ManualClock — explicitly-advanced logical clock (FR-2)
+// =============================================================================
+
+/// An explicitly-advanced logical clock for deterministic replay and
+/// backtests. The watermark only ever moves forward. Time is expressed in
+/// nanoseconds (Python `int`); use `advance_to_millis` for a millisecond
+/// convenience. Clones share the same underlying watermark.
+#[pyclass(name = "ManualClock", module = "atomr._native.streams")]
+#[derive(Clone)]
+pub struct PyManualClock {
+    inner: RustManualClock,
+}
+
+#[pymethods]
+impl PyManualClock {
+    /// A new clock at logical-time zero, or at `start_nanos` if given.
+    #[new]
+    #[pyo3(signature = (start_nanos=0))]
+    fn new(start_nanos: u64) -> Self {
+        Self { inner: RustManualClock::at(LogicalTime::from_nanos(start_nanos)) }
+    }
+
+    /// Advance the watermark to `target_nanos` (monotonic — a target at or
+    /// below the current watermark is a no-op).
+    fn advance_to(&self, target_nanos: u64) {
+        self.inner.advance_to(LogicalTime::from_nanos(target_nanos));
+    }
+
+    /// Advance the watermark to `target_millis`, expressed in milliseconds.
+    fn advance_to_millis(&self, target_millis: u64) {
+        self.inner.advance_to(LogicalTime::from_millis(target_millis));
+    }
+
+    /// Advance the watermark by `delta_nanos`.
+    fn advance_by(&self, delta_nanos: u64) {
+        self.inner.advance_by(LogicalTime::from_nanos(delta_nanos));
+    }
+
+    /// The current watermark in nanoseconds.
+    fn watermark(&self) -> u64 {
+        self.inner.watermark().as_nanos()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("ManualClock(watermark_nanos={})", self.inner.watermark().as_nanos())
+    }
+}
+
+// =============================================================================
 // Module registration
 // =============================================================================
 
@@ -1884,6 +1946,7 @@ pub fn register(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     sub.add_class::<PyTcp>()?;
     sub.add_class::<PyTcpOutgoing>()?;
     sub.add_class::<PyFileIO>()?;
+    sub.add_class::<PyManualClock>()?;
     let _ = pyo3_tokio::get_runtime;
     m.add_submodule(&sub)?;
     Ok(())

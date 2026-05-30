@@ -21,7 +21,7 @@ projects with the same shape.
   no-op.
 * You do **not** push tags by hand and do **not** dispatch the release
   workflow by hand. The bump-and-tag bot does both.
-* End-to-end takes ~30 minutes from `git push` to "all 22 crates on
+* End-to-end takes ~30 minutes from `git push` to "all 25 crates on
   crates.io and the wheel set on PyPI."
 * If you need to ship something that isn't a real fix/feat, append a
   `Release-As: x.y.z` footer to any commit body to force an exact-version
@@ -49,7 +49,7 @@ projects with the same shape.
                 │                              2. build binaries      │
                 │                              3. build wheels + sdist│
                 │                              4. GitHub Release      │
-                │                              5. publish 22 crates   │
+                │                              5. publish 25 crates   │
                 │                                 to crates.io        │
                 │                              6. publish wheels +    │
                 │                                 sdist to PyPI       │
@@ -176,7 +176,7 @@ self-documenting in the workflow YAML.
 
 | Artifact | Where it lands | Built by |
 |---|---|---|
-| 22 Rust crates (workspace publishables) | crates.io | `publish-crates` job, sequentially in dep order |
+| 25 Rust crates (workspace publishables) | crates.io | `publish-crates` job, sequentially in dep order |
 | `atomr-dashboard` binary, 5 platforms | GitHub Release | `build-binaries` matrix |
 | `atomr-profiler` binary, 5 platforms | GitHub Release | `build-binaries` matrix |
 | 6 Python wheels (manylinux x86_64/aarch64, musllinux x86_64/aarch64, macOS universal2, win_amd64) | PyPI | `build-wheels` matrix |
@@ -199,12 +199,13 @@ limits) and exponential backoff on `429 Too Many Requests`.
 ```
 Layer  Crate(s)
 ─────  ──────────────────────────────────────────────────────────────
-  1    atomr-config
+  1    atomr-config, atomr-money
   2    atomr-core
   3    atomr-serialization-hyperion
   4    atomr-macros, atomr-testkit
   5    atomr-remote, atomr-remote-serial
   6    atomr-persistence, atomr-streams
+  6b   atomr-streams-io, atomr-fix (depend on atomr-core + atomr-streams)
   7    atomr-coordination, atomr-discovery, atomr-di
   8    atomr-cluster
   9    atomr-persistence-tck, atomr-persistence-query
@@ -379,7 +380,7 @@ fired.
 
 Recovery: cut a fresh release using a `fix:` commit (or
 `Release-As: <next-version>` footer). The new pipeline takes over
-and all 22 crates publish at the new version, jumping over the
+and all 25 crates publish at the new version, jumping over the
 unpublished tags. Crates.io enforces monotonically increasing
 versions, so leapfrogging is fine and supported.
 

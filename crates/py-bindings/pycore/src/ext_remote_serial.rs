@@ -56,11 +56,7 @@ impl PySerialTransport {
             max_frame_size,
             atomr_remote_serial::ReconnectPolicy::default(),
         );
-        Ok(Self {
-            inner: Some(Arc::new(transport)),
-            system_name,
-            device: PathBuf::from(device),
-        })
+        Ok(Self { inner: Some(Arc::new(transport)), system_name, device: PathBuf::from(device) })
     }
 
     #[getter]
@@ -79,10 +75,7 @@ impl PySerialTransport {
     #[staticmethod]
     fn list_devices() -> PyResult<Vec<(String, String)>> {
         match tokio_serial::available_ports() {
-            Ok(ports) => Ok(ports
-                .into_iter()
-                .map(|p| (p.port_name, format!("{:?}", p.port_type)))
-                .collect()),
+            Ok(ports) => Ok(ports.into_iter().map(|p| (p.port_name, format!("{:?}", p.port_type))).collect()),
             Err(e) => Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("enumerate: {e}"))),
         }
     }
@@ -109,16 +102,8 @@ impl PySerialTransport {
         let a = SerialTransport::with_streams(system_a.clone(), a_reader, a_writer, max_frame);
         let b = SerialTransport::with_streams(system_b.clone(), b_reader, b_writer, max_frame);
         Ok((
-            Self {
-                inner: Some(Arc::new(a)),
-                system_name: system_a,
-                device: PathBuf::from("<duplex>"),
-            },
-            Self {
-                inner: Some(Arc::new(b)),
-                system_name: system_b,
-                device: PathBuf::from("<duplex>"),
-            },
+            Self { inner: Some(Arc::new(a)), system_name: system_a, device: PathBuf::from("<duplex>") },
+            Self { inner: Some(Arc::new(b)), system_name: system_b, device: PathBuf::from("<duplex>") },
         ))
     }
 }
@@ -158,7 +143,9 @@ impl PyRemoteSystem {
                 .map_err(|e| {
                     PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("start_with_transport: {e:?}"))
                 })?;
-            Python::with_gil(|py| Py::new(py, PyRemoteSystem { inner: Arc::new(remote) }).map(|p| p.into_any()))
+            Python::with_gil(|py| {
+                Py::new(py, PyRemoteSystem { inner: Arc::new(remote) }).map(|p| p.into_any())
+            })
         })
     }
 
@@ -228,13 +215,11 @@ impl PyRemoteSystem {
         let manifest_for_send = manifest.clone();
         let serialize: Arc<
             dyn Fn(Vec<u8>, Option<ActorPath>) -> atomr_core::actor::SerializedMessage + Send + Sync,
-        > = Arc::new(move |bytes: Vec<u8>, sender: Option<ActorPath>| {
-            atomr_core::actor::SerializedMessage {
-                serializer_id: JSON_SERIALIZER_ID,
-                manifest: manifest_for_send.clone(),
-                payload: bytes,
-                sender,
-            }
+        > = Arc::new(move |bytes: Vec<u8>, sender: Option<ActorPath>| atomr_core::actor::SerializedMessage {
+            serializer_id: JSON_SERIALIZER_ID,
+            manifest: manifest_for_send.clone(),
+            payload: bytes,
+            sender,
         });
         let Some(rust_ref) = self.inner.system.actor_selection_with::<Vec<u8>>(&path, serialize) else {
             return Ok(None);
@@ -301,9 +286,8 @@ fn register_identity_codec(remote: &RemoteSystem, manifest: String) {
         manifest: manifest.clone(),
         type_id: TypeId::of::<Vec<u8>>(),
         encode: Arc::new(|v: &dyn Any| {
-            let bytes = v
-                .downcast_ref::<Vec<u8>>()
-                .ok_or_else(|| SerializeError::Downcast("Vec<u8>".into()))?;
+            let bytes =
+                v.downcast_ref::<Vec<u8>>().ok_or_else(|| SerializeError::Downcast("Vec<u8>".into()))?;
             Ok(bytes.clone())
         }),
         decode: Arc::new(move |b: &[u8]| {

@@ -4,6 +4,9 @@
 //! platforms the readers return `None` and callers treat the field as
 //! "unavailable". The CLI prints those as `n/a` rather than failing.
 
+// `fs` is only used by the Linux `/proc` readers below; on other
+// platforms those `cfg` blocks compile out, so gate the import to match.
+#[cfg(target_os = "linux")]
 use std::fs;
 use std::time::Duration;
 

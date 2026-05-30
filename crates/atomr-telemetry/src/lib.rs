@@ -95,6 +95,19 @@ impl TelemetryExtension {
         self.exporters.write().push(exporter);
     }
 
+    /// Install the FR-11 OTel span exporter and return the
+    /// [`TraceContextInterceptor`](exporters::otel_tracer::TraceContextInterceptor)
+    /// to register on actor `Props` via `Props::with_interceptor`. The
+    /// metrics exporter path is independent and untouched.
+    #[cfg(feature = "otel")]
+    pub fn add_span_exporter(
+        &self,
+        exporter: Arc<exporters::otel_tracer::OtelTracerExporter>,
+        probe: exporters::otel_tracer::SpanProbeConfig,
+    ) -> Arc<exporters::otel_tracer::TraceContextInterceptor> {
+        self.bus.attach_span_exporter(exporter, probe)
+    }
+
     /// Snapshot the full telemetry state of this node (one JSON payload).
     pub fn snapshot(&self) -> dto::NodeSnapshot {
         dto::NodeSnapshot {
@@ -115,3 +128,7 @@ impl TelemetryExtension {
 /// Shim so we can register `Arc<TelemetryExtension>` in the typed
 /// `Extensions` bag under a stable handle type.
 pub struct TelemetryHandle(pub Arc<TelemetryExtension>);
+
+/// Re-exports of the FR-11 OTel span model (gated behind the `otel` feature).
+#[cfg(feature = "otel")]
+pub use crate::exporters::otel_tracer::{OtelTracerExporter, SpanProbeConfig, TraceContextInterceptor};

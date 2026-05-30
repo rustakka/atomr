@@ -31,7 +31,14 @@ pub enum SystemMsg {
     Watch(UntypedActorRef),
     Unwatch(ActorPath),
     ReceiveTimeout,
-    ChildFailed { name: String, error: String },
+    ChildFailed {
+        name: String,
+        error: String,
+    },
+    /// A graded supervisor directive pushed into a running actor (FR-6).
+    /// Delivered out-of-band on the system channel so a circuit breaker can
+    /// throttle / suspend / resume a child without restarting it.
+    Directive(Directive),
 }
 
 /// Bookkeeping entry for a child on the parent's side.
@@ -123,11 +130,21 @@ async fn run_cell<A: Actor>(
             }
             Either::User(Some(env)) => {
                 ctx.current_sender = env.sender;
-                if let Err(panic_msg) = run_handle(actor, ctx, env.message).await {
+                ctx.current_metadata = env.metadata;
+                // FR-10: open an interceptor span for the lifetime of `handle`.
+                let _span_guard = props.interceptor.as_ref().map(|i| i.before_handle(&ctx.current_metadata));
+                let handle_result = run_handle(actor, ctx, env.message).await;
+                drop(_span_guard);
+                if let Err(panic_msg) = handle_result {
                     let directive =
                         supervisor_ref.as_ref().map(|s| s.decide(&panic_msg)).unwrap_or(Directive::Restart);
                     match directive {
                         Directive::Resume => {}
+                        // FR-6: graded directives degrade a running child without
+                        // restart — push the mode change in via `on_directive`.
+                        Directive::Throttle { .. } | Directive::Suspend { .. } | Directive::ResumeFrom(_) => {
+                            actor.on_directive(ctx, &directive).await;
+                        }
                         Directive::Restart => {
                             // Sliding-window retry budget. Only enforced when
                             // the strategy declares one; without `max_retries`
@@ -168,6 +185,7 @@ async fn run_cell<A: Actor>(
                     }
                 }
                 ctx.current_sender = super::sender::Sender::None;
+                ctx.current_metadata = super::metadata::Metadata::new();
             }
             Either::Timeout => {
                 if handle_system(actor, ctx, SystemMsg::ReceiveTimeout).await {
@@ -222,6 +240,10 @@ async fn handle_system<A: Actor>(actor: &mut A, ctx: &mut Context<A>, msg: Syste
         SystemMsg::ReceiveTimeout => false,
         SystemMsg::ChildFailed { name, error } => {
             tracing::warn!(path = %ctx.path, child = %name, "child failed: {error}");
+            false
+        }
+        SystemMsg::Directive(directive) => {
+            actor.on_directive(ctx, &directive).await;
             false
         }
     }

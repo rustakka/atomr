@@ -54,8 +54,10 @@ pub mod reactor;
 pub mod saga;
 pub mod specification;
 pub mod topology;
+pub mod tx_outbox;
 
 pub use error::PatternError;
 pub use topology::Topology;
+pub use tx_outbox::{EventRow, OutboxError, OutboxRow, TxOutbox};
 
 pub use ddd::{AggregateRoot, Command, DomainEvent, Entity, Repository, ValueObject};

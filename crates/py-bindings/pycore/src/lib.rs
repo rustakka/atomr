@@ -44,6 +44,7 @@ mod ext_ddata_lmdb;
 mod ext_di;
 mod ext_discovery;
 mod ext_hosting;
+mod ext_money;
 mod ext_pattern;
 mod ext_persistence;
 mod ext_remote;
@@ -76,6 +77,7 @@ fn _native(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     ext_cluster_tools::register(py, m)?;
     ext_cluster_sharding::register(py, m)?;
     ext_core_extras::register(py, m)?;
+    ext_money::register(py, m)?;
     ext_ddata::register(py, m)?;
     ext_ddata_lmdb::register(py, m)?;
     ext_persistence::register(py, m)?;

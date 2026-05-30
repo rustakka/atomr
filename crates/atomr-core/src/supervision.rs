@@ -39,15 +39,52 @@ impl PanicPayload {
     }
 }
 
-/// What the supervisor decides when a child fails.
+/// Operating mode a [`Directive::Suspend`] places a child into. Ordered from
+/// least to most restrictive; an actor's [`on_directive`](crate::actor::Actor::on_directive)
+/// hook is expected to gate its outbound effects accordingly.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum SuspendMode {
+    /// Accept only actions that move toward a flat / zero position.
+    FlatOnly,
+    /// Accept only risk-reducing actions (a superset of flat-only intent).
+    RiskReducingOnly,
+    /// Reject all outbound effects until resumed.
+    FullHalt,
+}
+
+/// What the supervisor decides when a child fails — or, for the graded
+/// variants, how it should degrade a *still-running* child.
+///
+/// `Resume`/`Restart`/`Stop`/`Escalate` are the classic crash-recovery
+/// directives. `Throttle`/`Suspend`/`ResumeFrom` are graded operating-mode
+/// changes (FR-6): the supervisor pushes them into a running child via
+/// [`Actor::on_directive`](crate::actor::Actor::on_directive) *without* a
+/// restart, so the child's state is preserved. This lets a risk circuit
+/// breaker reduce order rate/size or move to flat-only instead of bouncing the
+/// actor.
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[non_exhaustive]
 pub enum Directive {
     Resume,
     Restart,
     Stop,
     Escalate,
+    /// Reduce the child's effective rate/size by `factor` (e.g. `0.25` = quarter)
+    /// for at least `window`. Applied without restart.
+    Throttle {
+        factor: f32,
+        window: Duration,
+    },
+    /// Move the child into a restricted operating `mode` without restart.
+    Suspend {
+        mode: SuspendMode,
+    },
+    /// Step the child back up the ladder to a less-restrictive `mode`.
+    ResumeFrom(SuspendMode),
 }
+
+impl Eq for Directive {}
 
 pub type Decider = Arc<dyn Fn(&str) -> Directive + Send + Sync>;
 

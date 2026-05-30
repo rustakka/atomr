@@ -9,6 +9,7 @@ theme:
 nav:
   - Home: index.md
   - "Actors & agentic systems": actors-and-agentic-computing.md
+  - Financial substrate: financial-substrate.md
   - Feature surface: parity.md
   - Depth program: full-port-plan.md
   - Alignment ledger: alignment-ledger.md

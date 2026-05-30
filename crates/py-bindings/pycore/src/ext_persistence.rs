@@ -29,12 +29,13 @@
 
 use std::sync::Arc;
 
+use parking_lot::Mutex;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyList};
 
 use atomr_persistence::{
-    InMemoryJournal, InMemorySnapshotStore, Journal, PersistentRepr, RecoveryPermitter, SnapshotMetadata,
-    SnapshotStore,
+    InMemoryJournal, InMemorySnapshotStore, Journal, PersistentRepr, RecoveryPermitter, RngState, RunPin,
+    SeededRng, SnapshotMetadata, SnapshotStore,
 };
 
 use crate::errors;
@@ -435,6 +436,124 @@ impl PyEffect {
 }
 
 // ---------------------------------------------------------------------
+// Determinism — SeededRng / RngState / RunPin (FR-13)
+// ---------------------------------------------------------------------
+
+/// A serializable snapshot of a [`PySeededRng`]'s position in its stream.
+/// Capturing seed + stream + word position reproduces the identical
+/// subsequent draw sequence on `SeededRng.restore`.
+#[pyclass(name = "RngState", module = "atomr._native.persistence")]
+#[derive(Clone)]
+pub struct PyRngState {
+    pub(crate) inner: RngState,
+}
+
+#[pymethods]
+impl PyRngState {
+    /// The 32-byte ChaCha20 seed.
+    #[getter]
+    fn seed<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new_bound(py, &self.inner.seed)
+    }
+
+    /// Stream selector — distinguishes independent substreams from `split`.
+    #[getter]
+    fn stream(&self) -> u64 {
+        self.inner.stream
+    }
+
+    /// Word position within the keystream (Python `int`; may exceed 64 bits).
+    #[getter]
+    fn word_pos(&self) -> u128 {
+        self.inner.word_pos
+    }
+
+    fn __repr__(&self) -> String {
+        format!("RngState(stream={}, word_pos={})", self.inner.stream, self.inner.word_pos)
+    }
+}
+
+/// Deterministic, snapshot/restore-able RNG for record-and-replay. Same
+/// seed + same number of draws yields the identical `u64` sequence;
+/// `snapshot` + `restore` reproduces the remaining draws exactly, and
+/// `split` yields an independent substream without perturbing the parent.
+#[pyclass(name = "SeededRng", module = "atomr._native.persistence")]
+pub struct PySeededRng {
+    inner: Mutex<SeededRng>,
+}
+
+#[pymethods]
+impl PySeededRng {
+    /// Construct from a 64-bit seed.
+    #[staticmethod]
+    fn from_seed(seed: u64) -> Self {
+        Self { inner: Mutex::new(SeededRng::from_seed(seed)) }
+    }
+
+    /// Rebuild an RNG positioned exactly where `state` was taken.
+    #[staticmethod]
+    fn restore(state: &PyRngState) -> Self {
+        Self { inner: Mutex::new(SeededRng::restore(state.inner.clone())) }
+    }
+
+    /// Draw the next `u64`, advancing the stream position.
+    fn next_u64(&self) -> u64 {
+        self.inner.lock().next_u64()
+    }
+
+    /// Capture the current position for later `restore`.
+    fn snapshot(&self) -> PyRngState {
+        PyRngState { inner: self.inner.lock().snapshot() }
+    }
+
+    /// Fork an independent substream. Does not consume the parent's keystream.
+    fn split(&self) -> Self {
+        Self { inner: Mutex::new(self.inner.lock().split()) }
+    }
+}
+
+/// Governance record pinning the model/provider/version/seed a run was
+/// produced under — recorded alongside a snapshot so a replay can prove
+/// it reproduces the *same* configuration.
+#[pyclass(name = "RunPin", module = "atomr._native.persistence")]
+#[derive(Clone)]
+pub struct PyRunPin {
+    pub(crate) inner: RunPin,
+}
+
+#[pymethods]
+impl PyRunPin {
+    #[new]
+    fn new(model: String, provider: String, version: String, seed: u64) -> Self {
+        Self { inner: RunPin { model, provider, version, seed } }
+    }
+
+    #[getter]
+    fn model(&self) -> String {
+        self.inner.model.clone()
+    }
+    #[getter]
+    fn provider(&self) -> String {
+        self.inner.provider.clone()
+    }
+    #[getter]
+    fn version(&self) -> String {
+        self.inner.version.clone()
+    }
+    #[getter]
+    fn seed(&self) -> u64 {
+        self.inner.seed
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "RunPin(model={:?}, provider={:?}, version={:?}, seed={})",
+            self.inner.model, self.inner.provider, self.inner.version, self.inner.seed
+        )
+    }
+}
+
+// ---------------------------------------------------------------------
 // Module registration.
 // ---------------------------------------------------------------------
 
@@ -444,6 +563,9 @@ pub fn register(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     sub.add_class::<PyInMemorySnapshotStore>()?;
     sub.add_class::<PyRecoveryPermitter>()?;
     sub.add_class::<PyEffect>()?;
+    sub.add_class::<PyRngState>()?;
+    sub.add_class::<PySeededRng>()?;
+    sub.add_class::<PyRunPin>()?;
     m.add_submodule(&sub)?;
     Ok(())
 }

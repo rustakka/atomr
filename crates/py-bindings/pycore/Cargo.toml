@@ -12,11 +12,17 @@ name = "_native"
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = ["extension-module"]
+# `extension-module` must NOT be on by default: with it enabled PyO3 omits the
+# libpython link, which breaks `cargo build/test --workspace` (the release
+# verify gate) for this crate's lib/test targets. The wheel build turns it on
+# explicitly via maturin (`features = ["pyo3/extension-module"]` in
+# pyproject.toml), so the published extension module is unaffected.
+default = []
 extension-module = ["pyo3/extension-module"]
 
 [dependencies]
 atomr-core = { workspace = true }
+atomr-money = { workspace = true }
 atomr-config = { workspace = true }
 atomr-testkit = { workspace = true }
 atomr-remote = { workspace = true }

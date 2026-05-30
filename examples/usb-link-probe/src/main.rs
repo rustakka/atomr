@@ -3,10 +3,10 @@
 //!
 //! Three subcommands:
 //!   * `list-devices` — enumerate serial ports on this OS.
-//!   * `listen`       — open a device, host a Peer actor, print the
-//!                      address to give to the connect side.
-//!   * `connect`      — open a device, associate to the printed
-//!                      address, exchange chat lines + ping/pong stats.
+//!   * `listen` — open a device, host a Peer actor, print the
+//!     address to give to the connect side.
+//!   * `connect` — open a device, associate to the printed
+//!     address, exchange chat lines + ping/pong stats.
 //!
 //! See `examples/usb-link-probe/README.md` for the worked
 //! Linux ↔ Windows flow.

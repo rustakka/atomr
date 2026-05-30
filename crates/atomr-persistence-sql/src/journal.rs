@@ -13,6 +13,7 @@ use sqlx::AnyPool;
 
 use crate::config::SqlConfig;
 use crate::schema::{ensure_schema, init_drivers};
+use crate::worm::{compute_row_hash, WormConfig};
 
 /// Saturating cast from `u64` to `i64` so `u64::MAX` sentinels turn into
 /// `i64::MAX` instead of wrapping negative.
@@ -24,9 +25,23 @@ fn clamp_i64(v: u64) -> i64 {
     }
 }
 
+/// FR-8: extract `valid_time` (nanos) from a `valid_time:<nanos>` tag.
+/// Returns `None` when absent so the column stays NULL.
+fn parse_valid_time(tags: &[String]) -> Option<i64> {
+    for t in tags {
+        if let Some(rest) = t.strip_prefix("valid_time:") {
+            if let Ok(n) = rest.parse::<i64>() {
+                return Some(n);
+            }
+        }
+    }
+    None
+}
+
 pub struct SqlJournal {
     pool: AnyPool,
     cfg: SqlConfig,
+    worm: WormConfig,
 }
 
 impl SqlJournal {
@@ -39,13 +54,26 @@ impl SqlJournal {
             .await
             .map_err(JournalError::backend)?;
         ensure_schema(&pool, &cfg).await?;
-        Ok(Arc::new(Self { pool, cfg }))
+        Ok(Arc::new(Self { pool, cfg, worm: WormConfig::default() }))
     }
 
     /// Reuse an existing pool (for tests or app-wide sharing).
     pub async fn from_pool(pool: AnyPool, cfg: SqlConfig) -> Result<Arc<Self>, JournalError> {
         ensure_schema(&pool, &cfg).await?;
-        Ok(Arc::new(Self { pool, cfg }))
+        Ok(Arc::new(Self { pool, cfg, worm: WormConfig::default() }))
+    }
+
+    /// Turn on WORM protections (FR-9).
+    ///
+    /// When `deny_update_delete` is set, this installs the dialect's
+    /// append-only DDL immediately. When `hash_chain` is set, subsequent
+    /// writes maintain the per-pid tamper-evident hash chain. Consumes the
+    /// (typically freshly-built) journal and returns a reconfigured `Arc`.
+    pub async fn with_worm(self: Arc<Self>, worm: WormConfig) -> Result<Arc<Self>, JournalError> {
+        if worm.deny_update_delete {
+            crate::schema::install_worm_triggers(&self.pool, &self.cfg).await?;
+        }
+        Ok(Arc::new(Self { pool: self.pool.clone(), cfg: self.cfg.clone(), worm }))
     }
 
     pub fn pool(&self) -> &AnyPool {
@@ -56,6 +84,10 @@ impl SqlJournal {
         &self.cfg
     }
 
+    pub fn worm_config(&self) -> WormConfig {
+        self.worm
+    }
+
     async fn current_highest(&self, pid: &str) -> Result<u64, JournalError> {
         let row: Option<(Option<i64>,)> =
             sqlx::query_as("SELECT MAX(sequence_nr) FROM event_journal WHERE persistence_id = ?")
@@ -64,6 +96,84 @@ impl SqlJournal {
                 .await
                 .map_err(JournalError::backend)?;
         Ok(row.and_then(|(v,)| v).map(|v| v as u64).unwrap_or(0))
+    }
+
+    /// FR-8 — system-time as-of: rows recorded at or before
+    /// `system_time_nanos`. `system_time` falls back to `created_at` for rows
+    /// written before the column existed. Later-recorded restatements (whose
+    /// `system_time` is greater) are excluded → no lookahead.
+    pub async fn replay_as_of(
+        &self,
+        pid: &str,
+        system_time_nanos: i64,
+    ) -> Result<Vec<PersistentRepr>, JournalError> {
+        let rows: Vec<(String, i64, Vec<u8>, String, String, i32)> = sqlx::query_as(
+            "SELECT persistence_id, sequence_nr, payload, manifest, writer_uuid, deleted \
+             FROM event_journal \
+             WHERE persistence_id = ? AND deleted = 0 \
+               AND COALESCE(system_time, created_at) <= ? \
+             ORDER BY sequence_nr ASC",
+        )
+        .bind(pid)
+        .bind(system_time_nanos)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(JournalError::backend)?;
+        self.hydrate(rows).await
+    }
+
+    /// FR-8 — bitemporal slice: rows whose `valid_time` is at or before
+    /// `valid_time_nanos`, restricted to what was known to the system at
+    /// `system_time_nanos`. Rows without a `valid_time` are treated as valid
+    /// from their `system_time` (always-valid) so they remain visible.
+    pub async fn replay_valid_as_of(
+        &self,
+        pid: &str,
+        valid_time_nanos: i64,
+        system_time_nanos: i64,
+    ) -> Result<Vec<PersistentRepr>, JournalError> {
+        let rows: Vec<(String, i64, Vec<u8>, String, String, i32)> = sqlx::query_as(
+            "SELECT persistence_id, sequence_nr, payload, manifest, writer_uuid, deleted \
+             FROM event_journal \
+             WHERE persistence_id = ? AND deleted = 0 \
+               AND COALESCE(system_time, created_at) <= ? \
+               AND COALESCE(valid_time, COALESCE(system_time, created_at)) <= ? \
+             ORDER BY sequence_nr ASC",
+        )
+        .bind(pid)
+        .bind(system_time_nanos)
+        .bind(valid_time_nanos)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(JournalError::backend)?;
+        self.hydrate(rows).await
+    }
+
+    /// Attach tags to bare journal rows, reproducing `replay_messages` shape.
+    async fn hydrate(
+        &self,
+        rows: Vec<(String, i64, Vec<u8>, String, String, i32)>,
+    ) -> Result<Vec<PersistentRepr>, JournalError> {
+        let mut out = Vec::with_capacity(rows.len());
+        for (pid, seq, payload, manifest, writer, deleted) in rows {
+            let tags: Vec<(String,)> =
+                sqlx::query_as("SELECT tag FROM event_tags WHERE persistence_id = ? AND sequence_nr = ?")
+                    .bind(&pid)
+                    .bind(seq)
+                    .fetch_all(&self.pool)
+                    .await
+                    .map_err(JournalError::backend)?;
+            out.push(PersistentRepr {
+                persistence_id: pid,
+                sequence_nr: seq as u64,
+                payload,
+                manifest,
+                writer_uuid: writer,
+                deleted: deleted != 0,
+                tags: tags.into_iter().map(|(t,)| t).collect(),
+            });
+        }
+        Ok(out)
     }
 }
 
@@ -87,13 +197,53 @@ impl Journal for SqlJournal {
                     .await
                     .map_err(JournalError::backend)?;
             let start = row.and_then(|(v,)| v).map(|v| v as u64 + 1).unwrap_or(1);
+
+            // Seed the running hash from the latest existing row so the chain
+            // survives across separate write batches.
+            let mut prev_hash: Vec<u8> = if self.worm.hash_chain {
+                let last: Option<(Option<Vec<u8>>,)> = sqlx::query_as(
+                    "SELECT row_hash FROM event_journal WHERE persistence_id = ? \
+                     ORDER BY sequence_nr DESC LIMIT 1",
+                )
+                .bind(&pid)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(JournalError::backend)?;
+                last.and_then(|(h,)| h).unwrap_or_default()
+            } else {
+                Vec::new()
+            };
+
             for (expected, msg) in (start..).zip(batch) {
                 if msg.sequence_nr != expected {
                     return Err(JournalError::SequenceOutOfOrder { expected, got: msg.sequence_nr });
                 }
                 let created_at = chrono::Utc::now().timestamp_millis();
+                // FR-8: system_time is backend-assigned (defaults to created_at);
+                // valid_time is parsed from a `valid_time:<nanos>` tag if present.
+                let system_time = created_at;
+                let valid_time = parse_valid_time(&msg.tags);
+
+                // FR-9: compute the chain hash for this row when enabled.
+                let (row_hash_opt, prev_for_insert): (Option<Vec<u8>>, Option<Vec<u8>>) =
+                    if self.worm.hash_chain {
+                        let prev_for_insert =
+                            if prev_hash.is_empty() { None } else { Some(prev_hash.clone()) };
+                        let rh = compute_row_hash(
+                            &prev_hash,
+                            &msg.persistence_id,
+                            msg.sequence_nr,
+                            &msg.payload,
+                            created_at,
+                        );
+                        prev_hash = rh.clone();
+                        (Some(rh), prev_for_insert)
+                    } else {
+                        (None, None)
+                    };
+
                 sqlx::query(
-                    "INSERT INTO event_journal (persistence_id, sequence_nr, payload, manifest, writer_uuid, deleted, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO event_journal (persistence_id, sequence_nr, payload, manifest, writer_uuid, deleted, created_at, prev_hash, row_hash, system_time, valid_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 )
                 .bind(&msg.persistence_id)
                 .bind(msg.sequence_nr as i64)
@@ -102,6 +252,10 @@ impl Journal for SqlJournal {
                 .bind(&msg.writer_uuid)
                 .bind(0i32)
                 .bind(created_at)
+                .bind(prev_for_insert)
+                .bind(row_hash_opt)
+                .bind(system_time)
+                .bind(valid_time)
                 .execute(&mut *tx)
                 .await
                 .map_err(JournalError::backend)?;

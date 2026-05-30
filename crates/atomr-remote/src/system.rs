@@ -202,10 +202,8 @@ fn handle_inbound(daemon: &Arc<RemoteSystemDaemon>, inbound: InboundEnvelope) {
                 tracing::warn!("system payload decode failed: {e}");
             }
         }
-    } else {
-        if let Err(e) = daemon.dispatch_user(&path, &env.manifest, env.serializer_id, &env.payload) {
-            tracing::warn!(rec = %env.recipient_path, "user payload dispatch failed: {e}");
-        }
+    } else if let Err(e) = daemon.dispatch_user(&path, &env.manifest, env.serializer_id, &env.payload) {
+        tracing::warn!(rec = %env.recipient_path, "user payload dispatch failed: {e}");
     }
 }
 

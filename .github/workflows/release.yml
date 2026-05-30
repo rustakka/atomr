@@ -346,12 +346,13 @@ jobs:
           # Cargo.toml; if a crate fails to publish with a "version
           # not found" error, its dep is being published too late.
           for crate in \
-            atomr-config \
+            atomr-config atomr-money \
             atomr-core \
             atomr-serialization-hyperion \
             atomr-macros atomr-testkit \
             atomr-remote atomr-remote-serial \
             atomr-persistence atomr-streams \
+            atomr-streams-io atomr-fix \
             atomr-coordination atomr-discovery atomr-di \
             atomr-cluster \
             atomr-persistence-tck atomr-persistence-query \
@@ -382,10 +383,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Dry-run publish (foundation crates)
         run: |
-          for c in atomr-config atomr-macros atomr-core atomr-serialization-hyperion \
+          for c in atomr-config atomr-money atomr-macros atomr-core atomr-serialization-hyperion \
                    atomr-testkit atomr-remote atomr-remote-serial \
                    atomr-distributed-data atomr-distributed-data-lmdb \
-                   atomr-cluster atomr-persistence atomr-streams \
+                   atomr-cluster atomr-persistence atomr-streams atomr-streams-io atomr-fix \
                    atomr-cluster-sharding atomr-patterns atomr atomr-profiler; do
             echo "==> $c"
             cargo publish -p "$c" --dry-run --allow-dirty || true

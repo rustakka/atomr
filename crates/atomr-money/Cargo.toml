@@ -1,0 +1,36 @@
+[package]
+name = "atomr-money"
+description = "Exact-decimal monetary primitives for atomr — Currency, Money, Price, Qty with checked arithmetic and string (never float) serialization."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "../../README.md"
+documentation = "https://docs.rs/atomr-money"
+keywords = ["money", "decimal", "currency", "finance", "actor"]
+categories = ["data-structures", "finance"]
+
+[dependencies]
+rust_decimal = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+proptest = { workspace = true }
+rust_decimal_macros = "1"
+
+[features]
+default = []
+# Opt-in, never-default lossy f64 ingestion. Off by default so no money path
+# can silently take a float.
+f64-lossy = []
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

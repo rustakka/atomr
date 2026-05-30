@@ -15,9 +15,11 @@ categories = ["network-programming", "concurrency"]
 [dependencies]
 atomr-core = { workspace = true }
 atomr-cluster = { workspace = true }
+atomr-distributed-data = { workspace = true }
 tokio = { workspace = true }
 parking_lot = { workspace = true }
 async-trait = { workspace = true }
+futures = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 

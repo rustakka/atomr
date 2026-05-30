@@ -23,7 +23,8 @@ use tokio::sync::mpsc;
 use atomr_distributed_data::{
     CrdtMerge, DurableStore, FileDurableStore, Flag, GCounter, GSet, LWWMap, LwwRegister, NoopDurableStore,
     ORMap, ORMultiMap, OrSet, PNCounter, PNCounterMap, PruningPhase, PruningState, ReadAggregator,
-    ReadConsistency, ReplicatorAck, ReplicatorActor, SubscriptionToken, WriteAggregator, WriteConsistency,
+    ReadConsistency, ReplicatorAck, ReplicatorActor, SignedSum, SignedSumMap, SubscriptionToken,
+    WriteAggregator, WriteConsistency,
 };
 
 use crate::actor_system::PyActorSystem;
@@ -719,6 +720,86 @@ impl PyORMultiMap {
     }
 
     fn merge(&self, other: &PyORMultiMap) {
+        let o = other.inner.lock().clone();
+        self.inner.lock().merge(&o);
+    }
+}
+
+// =====================================================================
+// SignedSum / SignedSumMap — FR-4 signed-exposure CRDTs (i128 payload)
+// =====================================================================
+
+/// Signed, `i128`-payload exposure CRDT. Tracks a net signed value that
+/// converges across replicas: `value() = sum(pos) - sum(neg)`. Negative
+/// deltas are first-class (routed into the per-node negative accumulator);
+/// all arithmetic saturates rather than wrapping. `i128` maps to Python
+/// `int`.
+#[pyclass(name = "SignedSum", module = "atomr._native.ddata")]
+pub struct PySignedSum {
+    pub(crate) inner: Mutex<SignedSum>,
+}
+
+#[pymethods]
+impl PySignedSum {
+    #[new]
+    fn new() -> Self {
+        Self { inner: Mutex::new(SignedSum::new()) }
+    }
+
+    /// Apply a signed `delta` attributed to `node`. `delta >= 0` adds to
+    /// the positive accumulator; `delta < 0` adds its magnitude to the
+    /// negative accumulator.
+    fn add(&self, node: String, delta: i128) {
+        self.inner.lock().add(&node, delta);
+    }
+
+    /// Net signed exposure (`sum(pos) - sum(neg)`).
+    fn value(&self) -> i128 {
+        self.inner.lock().value()
+    }
+
+    fn merge(&self, other: &PySignedSum) {
+        let o = other.inner.lock().clone();
+        self.inner.lock().merge(&o);
+    }
+}
+
+/// Map of `String` key → [`PySignedSum`] — convergent per-key net signed
+/// exposure (e.g. per instrument / desk / counterparty).
+#[pyclass(name = "SignedSumMap", module = "atomr._native.ddata")]
+pub struct PySignedSumMap {
+    pub(crate) inner: Mutex<SignedSumMap<String>>,
+}
+
+#[pymethods]
+impl PySignedSumMap {
+    #[new]
+    fn new() -> Self {
+        Self { inner: Mutex::new(SignedSumMap::new()) }
+    }
+
+    /// Apply a signed `delta` attributed to `node` for `key`.
+    fn add(&self, key: String, node: String, delta: i128) {
+        self.inner.lock().add(key, &node, delta);
+    }
+
+    /// Net signed exposure for `key` (`0` if the key is absent).
+    fn get(&self, key: String) -> i128 {
+        self.inner.lock().get(&key)
+    }
+
+    /// `(key, net_value)` pairs in key order.
+    fn entries(&self, py: Python<'_>) -> PyResult<Py<PyList>> {
+        let g = self.inner.lock();
+        let list = PyList::empty_bound(py);
+        for (k, v) in g.entries() {
+            let tup: Py<PyAny> = (k.clone(), v).into_py(py);
+            list.append(tup)?;
+        }
+        Ok(list.unbind())
+    }
+
+    fn merge(&self, other: &PySignedSumMap) {
         let o = other.inner.lock().clone();
         self.inner.lock().merge(&o);
     }
@@ -1447,6 +1528,8 @@ pub fn register(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     sub.add_class::<PyLWWMap>()?;
     sub.add_class::<PyPNCounterMap>()?;
     sub.add_class::<PyORMultiMap>()?;
+    sub.add_class::<PySignedSum>()?;
+    sub.add_class::<PySignedSumMap>()?;
     sub.add_class::<PyPruningState>()?;
     sub.add_class::<PyWriteAggregator>()?;
     sub.add_class::<PyReadAggregator>()?;

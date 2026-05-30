@@ -4,6 +4,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use super::deploy::Deploy;
+use super::metadata::MessageInterceptor;
 use super::traits::Actor;
 use crate::supervision::SupervisorStrategy;
 
@@ -17,6 +18,9 @@ pub struct Props<A: Actor> {
     pub mailbox: Option<String>,
     pub deploy: Deploy,
     pub supervisor_strategy: Option<SupervisorStrategy>,
+    /// Optional message interceptor (FR-10) invoked around each `handle` and on
+    /// outgoing sends — e.g. a tracing-context propagator.
+    pub interceptor: Option<Arc<dyn MessageInterceptor>>,
 }
 
 impl<A: Actor> Clone for Props<A> {
@@ -27,6 +31,7 @@ impl<A: Actor> Clone for Props<A> {
             mailbox: self.mailbox.clone(),
             deploy: self.deploy.clone(),
             supervisor_strategy: self.supervisor_strategy.clone(),
+            interceptor: self.interceptor.clone(),
         }
     }
 }
@@ -53,7 +58,15 @@ impl<A: Actor> Props<A> {
             mailbox: None,
             deploy: Deploy::local(),
             supervisor_strategy: None,
+            interceptor: None,
         }
+    }
+
+    /// Install a [`MessageInterceptor`] (FR-10). It fires before/after each
+    /// `handle` and can inject child trace context on outgoing sends.
+    pub fn with_interceptor(mut self, interceptor: Arc<dyn MessageInterceptor>) -> Self {
+        self.interceptor = Some(interceptor);
+        self
     }
 
     pub fn with_dispatcher(mut self, d: impl Into<String>) -> Self {

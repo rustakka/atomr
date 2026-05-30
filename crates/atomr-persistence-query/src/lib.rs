@@ -107,6 +107,38 @@ pub trait ReadJournal: Send + Sync + 'static {
     async fn current_persistence_ids(&self) -> Result<Vec<String>, JournalError> {
         self.all_persistence_ids().await
     }
+
+    /// FR-8 — bitemporal *system-time* as-of query: return the events for
+    /// `pid` **as they were known to the system at** `system_time_nanos`,
+    /// excluding any later-recorded restatement (no lookahead).
+    ///
+    /// The default impl has no notion of system time, so it falls back to the
+    /// full current event list — only a backend that records a per-row
+    /// `system_time` (e.g. the SQL provider) can honor the cutoff. Override
+    /// to get a true as-of slice.
+    async fn events_as_of(
+        &self,
+        pid: &str,
+        _system_time_nanos: u128,
+    ) -> Result<Vec<EventEnvelope>, JournalError> {
+        self.current_events_by_persistence_id(pid, 0, u64::MAX).await
+    }
+
+    /// FR-8 — full bitemporal slice: events for `pid` whose *valid time* is at
+    /// or before `valid_time_nanos`, as known to the system at
+    /// `system_time_nanos`. Distinguishes a corrected value (recorded later)
+    /// from the value originally known at an earlier system time.
+    ///
+    /// Default impl ignores both time axes (returns the current list); only
+    /// the SQL backend provides the true bitemporal slice.
+    async fn events_valid_as_of(
+        &self,
+        pid: &str,
+        _valid_time_nanos: u128,
+        _system_time_nanos: u128,
+    ) -> Result<Vec<EventEnvelope>, JournalError> {
+        self.current_events_by_persistence_id(pid, 0, u64::MAX).await
+    }
 }
 
 pub struct SimpleReadJournal<J: Journal> {
@@ -234,6 +266,19 @@ mod tests {
         let from2 = q.events_by_tag("t", Offset::Sequence(2)).await.unwrap();
         assert_eq!(from2.len(), 2);
         assert_eq!(from2[0].sequence_nr, 2);
+    }
+
+    #[tokio::test]
+    async fn events_as_of_default_returns_current_events() {
+        // The default (non-SQL) impl has no system_time, so as-of degrades to
+        // the full current list — documented behavior.
+        let j = Arc::new(InMemoryJournal::default());
+        j.write_messages(vec![repr("a", 1, &[]), repr("a", 2, &[])]).await.unwrap();
+        let q = SimpleReadJournal::new(j);
+        let asof = q.events_as_of("a", 12345).await.unwrap();
+        assert_eq!(asof.len(), 2);
+        let bit = q.events_valid_as_of("a", 1, 2).await.unwrap();
+        assert_eq!(bit.len(), 2);
     }
 
     #[tokio::test]
