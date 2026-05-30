@@ -38,7 +38,7 @@
 //! * Resend of *application* messages replays via `SequenceReset`-GapFill only;
 //!   a real engine would keep a per-session outbound message log and resend the
 //!   original application messages with `PossDupFlag(43)=Y`. The hook for that
-//!   is [`FixSession::set_outbound_log`]-style storage, intentionally omitted to
+//!   is `FixSession::set_outbound_log`-style storage, intentionally omitted to
 //!   keep the store contract narrow.
 //! * `PossResend(97)` / `OrigSendingTime(122)` handling on inbound duplicates,
 //!   message-level validation (required-field / value checks beyond the header),

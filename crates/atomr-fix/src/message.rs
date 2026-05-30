@@ -279,9 +279,8 @@ impl FixMessage {
                 }
                 // Validated above as exactly 3 ASCII digits, so the parse is
                 // infallible; map the error anyway to keep the path panic-free.
-                let parsed = value
-                    .parse::<u32>()
-                    .map_err(|_| FixParseError::InvalidCheckSum(value.to_string()))?;
+                let parsed =
+                    value.parse::<u32>().map_err(|_| FixParseError::InvalidCheckSum(value.to_string()))?;
                 found_checksum = Some(parsed as u8);
             }
 
