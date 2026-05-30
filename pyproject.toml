@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "atomr"
-version = "0.9.2"
+version = "0.10.0"
 description = "Native Rust actor runtime with Python bindings — supervised concurrency from one core to a cluster."
 readme = "README.md"
 requires-python = ">=3.10"
