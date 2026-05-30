@@ -59,7 +59,7 @@ pub enum SuspendMode {
 /// `Resume`/`Restart`/`Stop`/`Escalate` are the classic crash-recovery
 /// directives. `Throttle`/`Suspend`/`ResumeFrom` are graded operating-mode
 /// changes (FR-6): the supervisor pushes them into a running child via
-/// [`Actor::on_directive`](crate::actor::Actor::on_directive) *without* a
+/// [`Actor::on_directive`] *without* a
 /// restart, so the child's state is preserved. This lets a risk circuit
 /// breaker reduce order rate/size or move to flat-only instead of bouncing the
 /// actor.

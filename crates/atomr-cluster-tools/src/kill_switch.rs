@@ -414,7 +414,7 @@ impl ClusterKillSwitch {
     ///   quiesce its local guarded parties (bounded by `local_timeout`),
     ///   then ack back to the originator.
     /// * [`HaltPdu::Ack`] — record a peer's ack and wake any in-flight
-    ///   [`await_quiescence`].
+    ///   [`await_quiescence`](Self::await_quiescence).
     pub async fn apply_pdu(&self, pdu: HaltPdu, local_timeout: Duration) {
         match pdu {
             HaltPdu::Halt { from, epoch, reason } => {

@@ -178,7 +178,7 @@ pub struct ReplayReport {
 ///
 /// The harness is intentionally generic and minimal: state is rebuilt purely
 /// by `apply_event`, so two replays from the same seed + snapshot yield
-/// identical [`Eventsourced::State`].
+/// identical `Eventsourced::State`.
 pub struct ReplayHarness;
 
 impl ReplayHarness {

@@ -103,7 +103,7 @@ impl Default for SpanGuard {
 /// such as distributed tracing. Default methods are no-ops, so an interceptor
 /// only overrides what it needs.
 ///
-/// The default [`TraceContextInterceptor`]-style behaviour (linking parent →
+/// The default `TraceContextInterceptor`-style behaviour (linking parent →
 /// child spans) is provided by `atomr-telemetry` (FR-11); core only defines the
 /// hook so domain message types stay clean.
 pub trait MessageInterceptor: Send + Sync {

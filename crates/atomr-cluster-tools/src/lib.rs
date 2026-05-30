@@ -12,7 +12,7 @@ pub use cluster_singleton::{
     SingletonState,
 };
 pub use kill_switch::{
-    AckHandle, ClusterKillSwitch, HaltGuarded, HaltReason, HaltToken, KillSwitchQuorumObserver,
-    QuiescenceReport, ResetAuthorization, ResetError,
+    AckHandle, ClusterKillSwitch, HaltGuarded, HaltPdu, HaltReason, HaltToken, HaltTransport,
+    KillSwitchQuorumObserver, QuiescenceReport, ResetAuthorization, ResetError,
 };
 pub use pub_sub::{ClusterPubSub, DistributedPubSub, MediatorPdu, MediatorTransport};

@@ -48,7 +48,7 @@ use crate::traits::{CrdtMerge, DeltaCrdt};
 /// Per-node positive / negative accumulators for one signed exposure.
 ///
 /// Both accumulators are grow-only per node; the net exposure is
-/// `sum(pos) - sum(neg)`. See the [module docs](self) for convergence and
+/// `sum(pos) - sum(neg)`. See the module-level docs for convergence and
 /// overflow semantics.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SignedSum {

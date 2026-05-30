@@ -96,7 +96,7 @@ impl TelemetryExtension {
     }
 
     /// Install the FR-11 OTel span exporter and return the
-    /// [`TraceContextInterceptor`](exporters::otel_tracer::TraceContextInterceptor)
+    /// [`TraceContextInterceptor`]
     /// to register on actor `Props` via `Props::with_interceptor`. The
     /// metrics exporter path is independent and untouched.
     #[cfg(feature = "otel")]

@@ -7,7 +7,7 @@
 //! [`RestartSource::with_backoff`](atomr_streams::RestartSource::with_backoff).
 //! When the connection drops (or the initial connect fails) the restart
 //! combinator re-runs the factory after a backoff governed by the supplied
-//! [`RestartSettings`](atomr_streams::RestartSettings), so the source
+//! [`RestartSettings`], so the source
 //! transparently reconnects.
 //!
 //! Each connection attempt yields a [`Source`] of

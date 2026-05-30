@@ -123,7 +123,7 @@ impl TelemetryBus {
         self.exporters.write().push(exporter);
     }
 
-    /// Install the FR-11 span exporter and return a [`TraceContextInterceptor`]
+    /// Install the FR-11 span exporter and return a `TraceContextInterceptor`
     /// wired to it. Install the interceptor on actor `Props` via
     /// `Props::with_interceptor` so handled messages open `actor.handle` spans
     /// and outgoing messages carry child trace context. The metrics path is

@@ -226,7 +226,7 @@ where
 /// `token_bucket_keyed(key, rate_per_sec, burst)` — like [`token_bucket`] but
 /// maintains an independent bucket per key.
 ///
-/// Each distinct key returned by `key` gets its own [`TokenBucket`] with the
+/// Each distinct key returned by `key` gets its own `TokenBucket` with the
 /// same `rate_per_sec` / `burst` parameters, so heavy traffic on one key never
 /// starves another. Buckets are created lazily on first sight of a key and held
 /// for the lifetime of the stream.

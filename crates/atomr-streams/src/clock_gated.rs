@@ -48,7 +48,7 @@ const GATE_POLL_INTERVAL: Duration = Duration::from_millis(1);
 /// no matter how slow the downstream consumer is. The gate re-checks the
 /// watermark only at the moment it is about to release an element, so a slow
 /// consumer can only delay emission further — never let an element slip out
-/// early. While waiting it sleeps for [`GATE_POLL_INTERVAL`] between checks
+/// early. While waiting it sleeps for a short fixed `GATE_POLL_INTERVAL` between checks
 /// rather than busy-spinning.
 pub fn clock_gated<T, F>(src: Source<T>, clock: Arc<dyn Clock>, event_time: F) -> Source<T>
 where

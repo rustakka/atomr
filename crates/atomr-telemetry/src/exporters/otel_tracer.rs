@@ -3,7 +3,7 @@
 //! The metrics-only [`OtelExporter`](super::otel::OtelExporter) covers
 //! counters/gauges; this module adds the span model so a single trace can
 //! follow a message across actor hops. It reuses the same
-//! [`OtlpConfig`](super::config::OtlpConfig) as the metrics exporter and the
+//! [`OtlpConfig`] as the metrics exporter and the
 //! same OTLP/stdout transport selection.
 //!
 //! [`OtelTracerExporter`] owns an [`SdkTracerProvider`](opentelemetry_sdk::trace::TracerProvider)
